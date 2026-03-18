@@ -20,6 +20,9 @@ model Tenant {
 
   users User[]
   roles Role[]
+  subjects Subject[]
+  topics   Topic[]
+  concepts Concept[]
 }
 
 model User {
@@ -60,4 +63,54 @@ model UserRole {
   role Role @relation(fields: [role_id], references: [id])
 
   @@unique([user_id, role_id])
+}
+
+
+// Exam Engine Models
+
+model Subject {
+  id          String   @id @default(uuid())
+  tenant_id   String
+  name        String
+  description String?
+  created_at  DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+
+  topics Topic[]
+
+  @@index([tenant_id])
+  @@unique([tenant_id, name])
+}
+
+model Topic {
+  id          String   @id @default(uuid())
+  tenant_id   String
+  subject_id  String
+  name        String
+  description String?
+  created_at  DateTime @default(now())
+
+  tenant  Tenant  @relation(fields: [tenant_id], references: [id])
+  subject Subject @relation(fields: [subject_id], references: [id])
+
+  concepts Concept[]
+
+  @@index([tenant_id, subject_id])
+  @@unique([tenant_id, subject_id, name])
+}
+
+model Concept {
+  id          String   @id @default(uuid())
+  tenant_id   String
+  topic_id    String
+  name        String
+  description String?
+  created_at  DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+  topic  Topic  @relation(fields: [topic_id], references: [id])
+
+  @@index([tenant_id, topic_id])
+  @@unique([tenant_id, topic_id, name])
 }

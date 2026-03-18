@@ -7,6 +7,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { DatabaseModule } from './database/database.module';
 import { ConfigModule } from '@nestjs/config'
+import { KnowledgeModule } from './modules/knowledge/knowledge.module';
 
 
 
@@ -14,7 +15,11 @@ import { ConfigModule } from '@nestjs/config'
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true}), 
-    TenantsModule, AuthModule, UsersModule, DatabaseModule],
+    TenantsModule, 
+    AuthModule, 
+    UsersModule, 
+    KnowledgeModule,
+    DatabaseModule],
   controllers: [AppController],
   providers: [AppService, PrismaService],
 

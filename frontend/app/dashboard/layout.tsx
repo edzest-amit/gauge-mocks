@@ -34,7 +34,10 @@ export default function DashboardLayout({
           )}
 
           {user?.role === 'tenant_admin' && (
-            <Link href="/dashboard/users">Users</Link>
+          <>
+          <Link href="/dashboard/users">Users</Link>
+          <Link href="/dashboard/knowledge">Knowledge</Link>
+          </>
           )}
 
           <Link href="/dashboard">Dashboard</Link>
