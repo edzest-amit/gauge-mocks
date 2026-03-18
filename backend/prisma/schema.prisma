@@ -1,0 +1,63 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleScope {
+  PLATFORM
+  TENANT
+}
+
+model Tenant {
+  id         String   @id @default(uuid())
+  name       String
+  slug       String   @unique
+  created_at DateTime @default(now())
+
+  users User[]
+  roles Role[]
+}
+
+model User {
+  id            String   @id @default(uuid())
+  tenant_id     String
+  email         String
+  password_hash String
+  created_at    DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+
+  user_roles UserRole[]
+
+  @@unique([tenant_id, email])
+}
+
+model Role {
+  id         String   @id @default(uuid())
+  name       String
+  scope      RoleScope @default(TENANT)
+  tenant_id  String?
+  created_at DateTime @default(now())
+
+  tenant Tenant? @relation(fields: [tenant_id], references: [id])
+
+  user_roles UserRole[]
+
+  @@unique([tenant_id, name])
+}
+
+model UserRole {
+  id         String   @id @default(uuid())
+  user_id    String
+  role_id    String
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id])
+  role Role @relation(fields: [role_id], references: [id])
+
+  @@unique([user_id, role_id])
+}
