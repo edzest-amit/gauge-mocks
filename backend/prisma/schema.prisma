@@ -1,0 +1,519 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  
+}
+
+//Enums
+
+enum RoleScope {
+  PLATFORM
+  TENANT
+}
+
+enum QuestionType {
+  MCQ
+  MULTI_SELECT
+  NUMERIC
+  DRAG_DROP
+  HOTSPOT
+  PASSAGE
+}
+
+enum QuestionStatus {
+  draft
+  in_review
+  published
+  archived
+}
+
+enum DifficultyLevel {
+  easy
+  medium
+  hard
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+  SVG
+}
+
+//Models for Org Strcuture & authentication
+
+model Tenant {
+  id   String @id @default(uuid())
+  name String
+  slug String @unique
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  users User[]
+  roles Role[]
+
+  subjects Subject[]
+  topics   Topic[]
+  concepts Concept[]
+
+  questions Question[]
+  passages  Passage[]
+
+  media_assets MediaAsset[]
+
+  tag_categories TagCategory[]
+
+  // Future modules (keep placeholders ready)
+  // exams Exam[]
+  // attempts Attempt[]
+}
+
+model User {
+  id            String @id @default(uuid())
+  tenant_id     String
+  email         String
+  password_hash String
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+
+  created_questions Question[]
+  created_versions  QuestionVersion[]
+  created_passages  Passage[]
+  uploaded_media    MediaAsset[]
+  examAttempts      ExamAttempt[]
+  userConceptStats UserConceptStats[]
+
+  user_roles UserRole[]
+
+  @@unique([tenant_id, email])
+}
+
+model Role {
+  id        String    @id @default(uuid())
+  name      String
+  scope     RoleScope @default(TENANT)
+  tenant_id String?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  tenant Tenant? @relation(fields: [tenant_id], references: [id])
+
+  user_roles UserRole[]
+
+  @@unique([tenant_id, name])
+  @@index([tenant_id])
+}
+
+model UserRole {
+  user_id String
+  role_id String
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [role_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, role_id])
+  @@unique([user_id, role_id])
+}
+
+// Models for Knowledge Tree Module
+
+model Subject {
+  id          String  @id @default(uuid())
+  name        String
+  description String?
+  tenant_id   String
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+
+  topics Topic[]
+
+  @@unique([tenant_id, name])
+  @@index([tenant_id])
+}
+
+model Topic {
+  id          String  @id @default(uuid())
+  name        String
+  description String?
+
+  subject_id String
+  tenant_id  String
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  subject Subject @relation(fields: [subject_id], references: [id])
+  tenant  Tenant  @relation(fields: [tenant_id], references: [id])
+
+  concepts Concept[]
+
+  @@unique([tenant_id, subject_id, name])
+  @@index([tenant_id, subject_id])
+}
+
+model Concept {
+  id          String  @id @default(uuid())
+  name        String
+  description String?
+
+  topic_id  String
+  tenant_id String
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  topic  Topic  @relation(fields: [topic_id], references: [id])
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+
+  questions QuestionConcept[]
+  userConceptStats UserConceptStats[]
+
+  @@unique([tenant_id, topic_id, name])
+  @@index([tenant_id, topic_id])
+}
+
+// Media Modules
+
+model MediaAsset {
+  id          String    @id @default(uuid())
+  tenant_id   String
+  file_name   String
+  file_url    String
+  mime_type   String
+  media_type  MediaType
+  file_size   Int
+  uploaded_by String
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  tenant   Tenant @relation(fields: [tenant_id], references: [id])
+  uploader User   @relation(fields: [uploaded_by], references: [id])
+
+  question_media QuestionMedia[]
+  passage_media  PassageMedia[]
+
+  @@unique([tenant_id, file_url])
+  @@index([tenant_id])
+}
+
+model QuestionMedia {
+  id             String @id @default(uuid())
+  version_id     String
+  media_asset_id String
+  display_order  Int?
+
+  version QuestionVersion @relation(fields: [version_id], references: [id], onDelete: Cascade)
+  media   MediaAsset      @relation(fields: [media_asset_id], references: [id], onDelete: Cascade)
+
+  @@index([version_id, media_asset_id])
+}
+
+model PassageMedia {
+  id             String @id @default(uuid())
+  passage_id     String
+  media_asset_id String
+  display_order  Int?
+
+  passage Passage    @relation(fields: [passage_id], references: [id], onDelete: Cascade)
+  media   MediaAsset @relation(fields: [media_asset_id], references: [id], onDelete: Cascade)
+
+  @@index([passage_id])
+}
+
+model Passage {
+  id         String @id @default(uuid())
+  tenant_id  String
+  created_by String
+
+  title   String
+  content String
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  tenant  Tenant @relation(fields: [tenant_id], references: [id])
+  creator User   @relation(fields: [created_by], references: [id])
+
+  questions     QuestionContent[]
+  passage_media PassageMedia[]
+
+  @@index([tenant_id])
+  @@index([tenant_id, created_by])
+}
+
+// Question bank core
+
+model Question {
+  id        String @id @default(uuid())
+  tenant_id String
+
+  created_by         String
+  current_version_id String?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  tenant  Tenant @relation(fields: [tenant_id], references: [id])
+  creator User   @relation(fields: [created_by], references: [id])
+
+  current_version QuestionVersion? @relation("CurrentVersion", fields: [current_version_id], references: [id])
+
+  versions QuestionVersion[]
+  concepts QuestionConcept[]
+  tags     QuestionTag[]
+  attempts ExamAttemptQuestion[]
+  answers ExamAttemptAnswer[]
+
+  difficulty QuestionDifficulty?
+  stats      QuestionStats?
+
+  @@index([tenant_id, created_by])
+}
+
+model QuestionVersion {
+  id             String @id @default(uuid())
+  question_id    String
+  version_number Int
+
+  question_type    QuestionType
+  status           QuestionStatus
+  difficulty_level DifficultyLevel
+
+  created_by String
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  question Question @relation(fields: [question_id], references: [id], onDelete: Cascade)
+  creator  User     @relation(fields: [created_by], references: [id])
+
+  content        QuestionContent?
+  options        QuestionOption[]
+  numeric_answer QuestionNumericAnswer?
+  media          QuestionMedia[]
+  attempts       ExamAttemptQuestion[]
+  examAttemptAnswers ExamAttemptAnswer[]
+
+  current_for Question[] @relation("CurrentVersion")
+
+  @@unique([question_id, version_number])
+  @@index([question_id, status])
+  @@index([status, question_type])
+}
+
+model QuestionContent {
+  id         String @id @default(uuid())
+  version_id String @unique
+
+  stem_text   String
+  explanation String?
+
+  passage_id String?
+
+  version QuestionVersion @relation(fields: [version_id], references: [id], onDelete: Cascade)
+  passage Passage?        @relation(fields: [passage_id], references: [id])
+
+  @@index([passage_id])
+}
+
+model QuestionOption {
+  id         String @id @default(uuid())
+  version_id String
+
+  option_text   String
+  is_correct    Boolean
+  option_order  Int
+  metadata_json Json?
+
+  version QuestionVersion @relation(fields: [version_id], references: [id], onDelete: Cascade)
+
+  @@index([version_id])
+}
+
+model QuestionNumericAnswer {
+  id         String @id @default(uuid())
+  version_id String @unique
+
+  correct_value Float
+  tolerance     Float
+
+  version QuestionVersion @relation(fields: [version_id], references: [id], onDelete: Cascade)
+}
+
+//Concept tagging
+
+model QuestionConcept {
+  question_id String
+  concept_id  String
+
+  question Question @relation(fields: [question_id], references: [id], onDelete: Cascade)
+  concept  Concept  @relation(fields: [concept_id], references: [id])
+
+  @@id([question_id, concept_id])
+  @@index([concept_id, question_id])
+  @@index([question_id])
+}
+
+// Question Tagging System
+
+model TagCategory {
+  id        String  @id @default(uuid())
+  tenant_id String?
+
+  name        String
+  description String?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  tenant Tenant? @relation(fields: [tenant_id], references: [id])
+
+  tags Tag[]
+
+  @@unique([name, tenant_id])
+}
+
+model Tag {
+  id          String @id @default(uuid())
+  category_id String
+  name        String
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  category  TagCategory   @relation(fields: [category_id], references: [id], onDelete: Cascade)
+  questions QuestionTag[]
+
+  @@unique([category_id, name])
+  @@index([category_id])
+}
+
+model QuestionTag {
+  question_id String
+  tag_id      String
+
+  question Question @relation(fields: [question_id], references: [id], onDelete: Cascade)
+  tag      Tag      @relation(fields: [tag_id], references: [id], onDelete: Cascade)
+
+  @@id([question_id, tag_id])
+  @@index([question_id, tag_id])
+  @@index([tag_id])
+}
+
+// Difficulty Model
+
+model QuestionDifficulty {
+  question_id String @id
+
+  difficulty_score   Float
+  last_calculated_at DateTime
+
+  question Question @relation(fields: [question_id], references: [id], onDelete: Cascade)
+
+  @@index([difficulty_score, question_id])
+}
+
+//Question Analytics
+
+model QuestionStats {
+  question_id String @id
+
+  attempt_count    Int       @default(0)
+  correct_count    Int       @default(0)
+  avg_time_seconds Float?
+  last_attempt_at  DateTime?
+
+  question Question @relation(fields: [question_id], references: [id], onDelete: Cascade)
+
+  @@index([attempt_count])
+  @@index([correct_count])
+}
+
+// Exam Player
+
+model ExamAttempt {
+  id         String   @id @default(uuid())
+  user_id    String
+  tenant_id  String
+  status     String   @default("in_progress")
+  started_at DateTime @default(now())
+
+  questions ExamAttemptQuestion[]
+  answers ExamAttemptAnswer[]
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  user       User?    @relation(fields: [userId], references: [id])
+  userId     String?
+
+  @@index([user_id])
+  @@index([tenant_id])
+}
+
+model ExamAttemptQuestion {
+  id          String @id @default(uuid())
+  attempt_id  String
+  question_id String
+  version_id  String
+  order_index Int
+
+  attempt ExamAttempt @relation(fields: [attempt_id], references: [id])
+
+  question Question        @relation(fields: [question_id], references: [id])
+  version  QuestionVersion @relation(fields: [version_id], references: [id])
+
+  @@index([attempt_id])
+  @@index([question_id])
+  @@index([version_id])
+}
+
+model ExamAttemptAnswer {
+  id                 String @id @default(uuid())
+  attempt_id         String
+  question_id        String
+  version_id         String   // ✅ ADD THIS
+  selected_option_id String?
+  is_correct         Boolean
+
+  attempt  ExamAttempt      @relation(fields: [attempt_id], references: [id])
+  question Question         @relation(fields: [question_id], references: [id])
+  version  QuestionVersion  @relation(fields: [version_id], references: [id])
+
+  @@index([attempt_id])
+  @@index([version_id])
+}
+
+model UserConceptStats {
+  id          String  @id @default(uuid())
+
+  user_id     String
+  concept_id  String
+
+  total_attempts Int   @default(0)
+  correct_attempts Int @default(0)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // relations
+  user    User    @relation(fields: [user_id], references: [id])
+  concept Concept @relation(fields: [concept_id], references: [id])
+
+  @@unique([user_id, concept_id]) // ✅ one record per user per concept
+}
